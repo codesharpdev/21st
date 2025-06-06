@@ -1,55 +1,45 @@
 import React from "react"
 import { Metadata } from "next"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
-import { Component, SortOption, User } from "@/types/global"
-import { Tables } from "@/types/supabase"
-
-import { supabaseWithAdminAccess } from "@/lib/supabase"
-import { filterComponents, sortComponents } from "@/lib/filters.client"
-
-import { Header } from "../components/Header"
-import { HeroSection } from "@/components/HeroSection"
-import { NewsletterDialog } from "@/components/NewsletterDialog"
+import { Header } from "@/components/ui/header.client"
+import { Footer } from "@/components/ui/footer"
+import { HeroSection } from "@/components/ui/hero-section"
+import { NewsletterDialog } from "@/components/ui/newsletter-dialog"
 import { HomePageClient } from "./page.client"
-
+import { Logo } from "@/components/ui/logo"
+import { SITE_NAME, SITE_SLOGAN, BASE_KEYWORDS } from "@/lib/constants"
 export const dynamic = "force-dynamic"
 
 export const generateMetadata = async (): Promise<Metadata> => {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "21st.dev - The NPM for Design Engineers",
+    name: `${SITE_NAME} - ${SITE_SLOGAN}`,
     description:
-      "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui. Built by design engineers, for design engineers.",
+      "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui.",
     url: process.env.NEXT_PUBLIC_APP_URL,
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL}/s/{search_term_string}`,
+        urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL}/q/{search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },
+    keywords: BASE_KEYWORDS,
   }
 
   return {
-    title: "21st.dev – The NPM for Design Engineers",
+    title: `${SITE_NAME} – ${SITE_SLOGAN}`,
     description:
-      "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui. Built by design engineers, for design engineers.",
-    keywords: [
-      "react components",
-      "tailwind css",
-      "ui components",
-      "design engineers",
-      "component library",
-      "shadcn ui",
-      "publish components",
-    ],
+      "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui.",
+    keywords: [...BASE_KEYWORDS],
     openGraph: {
-      title: "21st.dev - The NPM for Design Engineers",
+      title: `${SITE_NAME} - ${SITE_SLOGAN}`,
       description:
-        "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui. Built by design engineers, for design engineers.",
+        "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui.",
       images: [
         {
           url: `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`,
@@ -60,9 +50,9 @@ export const generateMetadata = async (): Promise<Metadata> => {
     },
     twitter: {
       card: "summary_large_image",
-      title: "21st.dev - The NPM for Design Engineers",
+      title: `${SITE_NAME} - ${SITE_SLOGAN}`,
       description:
-        "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui. Built by design engineers, for design engineers.",
+        "Ship polished UIs faster with ready-to-use React Tailwind components inspired by shadcn/ui.",
       images: [`${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`],
     },
     other: {
@@ -72,67 +62,35 @@ export const generateMetadata = async (): Promise<Metadata> => {
 }
 
 export default async function HomePage() {
-  const cookieStore = cookies()
-  const shouldShowHero = !cookieStore.has("has_visited")
-  const hasOnboarded = cookieStore.has("has_onboarded")
-  // const defaultSortBy = hasOnboarded ? "likes" : "downloads"
-  const defaultQuickFilter = hasOnboarded ? "last_released" : "all"
-  const defaultSortBy = "downloads"
+  try {
+    const cookieStore = await cookies()
+    const shouldShowHero = !cookieStore.has("has_visited")
 
-  const sortByPreference: SortOption =
-    (cookieStore.get("sort_by")?.value as SortOption) ?? defaultSortBy
-  const orderByFields: [keyof Tables<"components">, { ascending: boolean }] =
-    (() => {
-      switch (sortByPreference) {
-        case "downloads":
-          return ["downloads_count", { ascending: false }]
-        case "likes":
-          return ["likes_count", { ascending: false }]
-        case "date":
-          return ["created_at", { ascending: false }]
-      }
-    })()
+    if (shouldShowHero) {
+      return (
+        <div className="min-h-screen flex flex-col">
+          <div className="flex-1">
+            <HeroSection />
+            <NewsletterDialog />
+          </div>
+          <Footer />
+        </div>
+      )
+    }
 
-  const {
-    data: allComponents,
-    count: componentsCount,
-    error: componentsError,
-  } = await supabaseWithAdminAccess
-    .from("components")
-    .select("*, user:users!user_id (*)", { count: "exact" })
-    .limit(40)
-    .eq("is_public", true)
-    .order(...orderByFields)
-    .returns<(Component & { user: User })[]>()
-
-  if (componentsError) {
-    return null
-  }
-
-  if (shouldShowHero) {
     return (
-      <>
-        <HeroSection />
-        <NewsletterDialog />
-      </>
+      <div className="min-h-screen flex flex-col">
+        <Header variant="default" />
+        <div className="flex-1">
+          <Logo className="z-50" />
+          <HomePageClient />
+          <NewsletterDialog />
+        </div>
+        <Footer />
+      </div>
     )
+  } catch (error) {
+    console.error("Error in home page:", error)
+    redirect("/")
   }
-
-  const initialComponents = sortComponents(
-    filterComponents(allComponents, defaultQuickFilter),
-    sortByPreference,
-  )
-
-  return (
-    <>
-      <Header page="home" />
-      <HomePageClient
-        initialComponents={initialComponents}
-        initialSortBy={sortByPreference}
-        initialQuickFilter={defaultQuickFilter}
-        componentsTotalCount={componentsCount ?? 0}
-      />
-      <NewsletterDialog />
-    </>
-  )
 }

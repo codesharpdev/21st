@@ -5,15 +5,21 @@ export async function resolveRegistryDependencyTree({
   supabase,
   sourceDependencySlugs,
   withDemoDependencies,
+  withStyles = false,
 }: {
   supabase: SupabaseClient<Database>
   sourceDependencySlugs: string[]
   withDemoDependencies: boolean
+  withStyles?: boolean
 }): Promise<
   | {
       data: {
         filesWithRegistry: Record<string, { code: string; registry: string }>
         npmDependencies: Record<string, string>
+        styles?: {
+          tailwindConfig?: string
+          globalCss?: string
+        }
       }
       error: null
     }
@@ -23,14 +29,14 @@ export async function resolveRegistryDependencyTree({
     .map((slug) => {
       const [username, componentSlug] = slug.split("/")
       const baseAndCondition = (extra: string) =>
-        `and(source_author_username.eq."${username}",source_component_slug.eq."${componentSlug}"${extra})`
+        `or(and(source_author_username.eq."${username}",source_component_slug.eq."${componentSlug}"${extra}),and(source_author_display_username.eq."${username}",source_component_slug.eq."${componentSlug}"${extra}))`
       return withDemoDependencies
         ? baseAndCondition("")
         : baseAndCondition(",or(is_demo_dependency.is.false,depth.eq.0)")
     })
     .join(",")
   const { data: dependencies, error } = await supabase
-    .from("component_dependencies_graph_view")
+    .from("component_dependencies_graph_view_v3")
     .select("*")
     .or(filterConditions)
     .returns<
@@ -38,6 +44,8 @@ export async function resolveRegistryDependencyTree({
         dependency_author_username: string
         source_component_slug: string
         source_author_username: string
+        tailwind_config_extension: string | null
+        global_css_extension: string | null
       })[]
     >()
 
@@ -56,6 +64,8 @@ export async function resolveRegistryDependencyTree({
       dependency_author_username: username,
       registry,
       dependencies: npmDependencies,
+      tailwind_config_extension,
+      global_css_extension,
     } = dep
 
     const response = await fetch(r2Link!)
@@ -71,6 +81,7 @@ export async function resolveRegistryDependencyTree({
         ),
         npmDependencies: npmDependencies,
         fileWithRegistry: null,
+        styles: null,
       }
     }
 
@@ -85,14 +96,61 @@ export async function resolveRegistryDependencyTree({
         ),
         npmDependencies: npmDependencies,
         fileWithRegistry: null,
+        styles: null,
       }
     }
 
-    const filePath = `/components/${registry}/${component_slug}.tsx`
+    // Fetch styles if requested and available
+    let styles = null
+    if (withStyles) {
+      const stylesPromises = []
+      if (tailwind_config_extension) {
+        stylesPromises.push(fetch(tailwind_config_extension))
+      }
+      if (global_css_extension) {
+        stylesPromises.push(fetch(global_css_extension))
+      }
+
+      if (stylesPromises.length > 0) {
+        const responses = await Promise.all(stylesPromises)
+        const texts = await Promise.all(responses.map((r) => r.text()))
+
+        styles = {
+          tailwindConfig: tailwind_config_extension ? texts[0] : undefined,
+          globalCss: global_css_extension ? texts[texts.length - 1] : undefined,
+        }
+      }
+    }
+
+    // Determine the file path based on registry
+    let fileWithRegistry = {}
+    if (registry === "lib") {
+      fileWithRegistry = {
+        [`/lib/${component_slug}.tsx`]: { code, registry: registry! },
+      }
+    } else if (registry === "hooks") {
+      // For hooks, add files in both locations
+      fileWithRegistry = {
+        [`/components/hooks/${component_slug}.tsx`]: {
+          code,
+          registry: registry!,
+        },
+        [`/hooks/${component_slug}.tsx`]: { code, registry: registry! },
+      }
+    } else {
+      fileWithRegistry = {
+        [`/components/${registry}/${component_slug}.tsx`]: {
+          code,
+          registry: registry!,
+        },
+      }
+    }
+
     return {
       error: null,
       npmDependencies: npmDependencies,
-      fileWithRegistry: { [filePath]: { code, registry: registry! } },
+      fileWithRegistry,
+      styles,
     }
   })
 
@@ -116,11 +174,13 @@ export async function resolveRegistryDependencyTree({
     {},
     ...results.map((r) => r.fileWithRegistry).filter(Boolean),
   )
+  const styles = results.find((r) => r.styles)?.styles
 
   return {
     data: {
       filesWithRegistry,
       npmDependencies,
+      ...(styles && { styles }),
     },
     error: null,
   }

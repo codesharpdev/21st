@@ -1,9 +1,9 @@
-import endent from "endent"
-import { PROMPT_TYPES } from "@/types/global"
-import { PromptType } from "@/types/global"
-import { uniq } from "lodash"
-import { Brain, Sparkles } from "lucide-react"
 import { Icons } from "@/components/icons"
+import { PROMPT_TYPES, PromptType } from "@/types/global"
+import { PromptRule } from "@/types/prompt-rules"
+import endent from "endent"
+import { uniq } from "lodash"
+import { Sparkles } from "lucide-react"
 
 interface PromptOptionBase {
   type: "option"
@@ -11,7 +11,7 @@ interface PromptOptionBase {
   label: string
   description: string
   action: "copy" | "open"
-  icon: JSX.Element
+  icon: React.ReactElement
 }
 
 interface PromptSeparator {
@@ -24,28 +24,12 @@ type PromptOption = PromptOptionBase | PromptSeparator
 export const promptOptions: PromptOption[] = [
   {
     type: "option",
-    id: PROMPT_TYPES.BASIC,
-    label: "Basic",
-    description: "Standard prompt for AI code editors",
+    id: PROMPT_TYPES.BOLT,
+    label: "Bolt.new (Partnership)",
+    description: "Optimized for Bolt.new",
     action: "copy",
     icon: (
-      <Sparkles
-        size={16}
-        className="min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px]"
-      />
-    ),
-  },
-  {
-    type: "option",
-    id: PROMPT_TYPES.EXTENDED,
-    label: "Extended",
-    description: "Extended prompt for complex components",
-    action: "copy",
-    icon: (
-      <Brain
-        size={16}
-        className="min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px]"
-      />
+      <Icons.boltLogo className="min-h-[22px] min-w-[22px] max-h-[22px] max-w-[22px]" />
     ),
   },
   {
@@ -54,12 +38,12 @@ export const promptOptions: PromptOption[] = [
   },
   {
     type: "option",
-    id: PROMPT_TYPES.V0,
-    label: "v0 by Vercel",
-    description: "Optimized for v0.dev",
+    id: PROMPT_TYPES.EXTENDED,
+    label: "Cursor (or any AI IDE)",
+    description: "Works with any AI IDE",
     action: "copy",
     icon: (
-      <Icons.v0Logo className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
+      <Icons.cursorIcon className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
     ),
   },
   {
@@ -74,12 +58,32 @@ export const promptOptions: PromptOption[] = [
   },
   {
     type: "option",
-    id: PROMPT_TYPES.BOLT,
-    label: "Bolt.new",
-    description: "Optimized for Bolt.new",
+    id: PROMPT_TYPES.V0,
+    label: "v0 by Vercel",
+    description: "Optimized for v0.dev",
     action: "copy",
     icon: (
-      <Icons.boltLogo className="min-h-[22px] min-w-[22px] max-h-[22px] max-w-[22px]" />
+      <Icons.v0Logo className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
+    ),
+  },
+  {
+    type: "option",
+    id: PROMPT_TYPES.REPLIT,
+    label: "Replit",
+    description: "Optimized for Replit Agent",
+    action: "copy",
+    icon: (
+      <Icons.replit className="min-h-[22px] min-w-[22px] max-h-[22px] max-w-[22px]" />
+    ),
+  },
+  {
+    type: "option",
+    id: PROMPT_TYPES.MAGIC_PATTERNS,
+    label: "Magic Patterns",
+    description: "Optimized for Magic Patterns",
+    action: "copy",
+    icon: (
+      <Icons.magicPatterns className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
     ),
   },
   {
@@ -90,20 +94,6 @@ export const promptOptions: PromptOption[] = [
     action: "copy",
     icon: (
       <Icons.sitebrewLogo className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
-    ),
-  },
-  {
-    id: "separator2",
-    type: "separator",
-  },
-  {
-    type: "option",
-    id: "v0-open",
-    label: "Open in v0.dev",
-    description: "Open component in v0.dev",
-    action: "open",
-    icon: (
-      <Icons.v0Logo className="min-h-[18px] min-w-[18px] max-h-[18px] max-w-[18px]" />
     ),
   },
 ]
@@ -121,6 +111,9 @@ export const getComponentInstallPrompt = ({
   npmDependenciesOfRegistryDependencies,
   tailwindConfig,
   globalCss,
+  promptRule,
+  userAdditionalContext,
+  indexCss,
 }: {
   promptType: PromptType
   codeFileName: string
@@ -132,26 +125,151 @@ export const getComponentInstallPrompt = ({
   npmDependenciesOfRegistryDependencies: Record<string, string>
   tailwindConfig?: string
   globalCss?: string
+  promptRule?: PromptRule
+  userAdditionalContext?: string
+  indexCss?: string
 }) => {
   const componentFileName = codeFileName.split("/").slice(-1)[0]
   const componentDemoFileName = demoCodeFileName.split("/").slice(-1)[0]
 
   let prompt = ""
 
+  if (promptType === PROMPT_TYPES.MAGIC_PATTERNS) {
+    prompt =
+      "Take the following code of a React component and add it to the design.\n" +
+      endent`        
+        ${componentFileName}
+        ${code}
+      ` +
+      "\n Here is an example of how to use the component:\n" +
+      endent`
+        ${componentDemoFileName}
+        ${demoCode}
+      ` +
+      "\n"
+
+    if (tailwindConfig) {
+      prompt +=
+        "\n" +
+        endent`
+        Extend the existing tailwind.config.js (or create a new one if non-existent) with this code:
+        \`\`\`js
+        ${tailwindConfig}
+        \`\`\`
+      ` +
+        "\n"
+    }
+
+    if (globalCss) {
+      prompt +=
+        "\n" +
+        endent`
+        Extend the existing index.css (or create a new one if non-existent) with this code:
+        \`\`\`css
+        ${globalCss}
+        \`\`\`
+      ` +
+        "\n"
+    }
+
+    if (Object.keys(registryDependencies || {}).length > 0) {
+      prompt +=
+        "\n" +
+        endent`
+        Copy-paste these files for dependencies:
+        ${Object.entries(registryDependencies)
+          .map(
+            ([fileName, fileContent]) => endent`
+            \`\`\`tsx
+            ${fileName}
+            ${fileContent}
+            \`\`\`
+          `,
+          )
+          .join("\n")}
+      ` +
+        "\n"
+    }
+
+    prompt +=
+      "\n" +
+      endent`
+        IMPORTANT:
+          - Modify the component as needed to fit the existing codebase + design
+          - Extend the tailwind.config.js and index.css if needed to include additional variables or styles
+          - You MUST create all mentioned files in full, without abbreviations. Do not use placeholders like "insert the rest of the code here"
+      `
+
+    // Apply prompt rule if provided
+    if (promptRule) {
+      // Add tech stack from prompt rule
+      if (promptRule.tech_stack && promptRule.tech_stack.length > 0) {
+        const techStackString = promptRule.tech_stack
+          .map(
+            (tech) => `${tech.name}${tech.version ? ` ${tech.version}` : ""}`,
+          )
+          .join(", ")
+
+        prompt += `\n\nProject Tech Stack: ${techStackString}`
+      }
+
+      // Add theme configuration from prompt rule
+      if (promptRule.theme) {
+        // Override tailwind config if provided in the prompt rule
+        if (promptRule.theme.tailwindConfig) {
+          tailwindConfig = promptRule.theme.tailwindConfig
+        }
+
+        // Override global CSS if provided in the prompt rule
+        if (promptRule.theme.globalCss) {
+          globalCss = promptRule.theme.globalCss
+        }
+
+        // Add custom colors if provided
+        if (
+          promptRule.theme.colors &&
+          Object.keys(promptRule.theme.colors).length > 0
+        ) {
+          prompt += `\n\nCustom Colors: ${JSON.stringify(promptRule.theme.colors, null, 2)}`
+        }
+
+        // Add custom spacing if provided
+        if (
+          promptRule.theme.spacing &&
+          Object.keys(promptRule.theme.spacing).length > 0
+        ) {
+          prompt += `\n\nCustom Spacing: ${JSON.stringify(promptRule.theme.spacing, null, 2)}`
+        }
+      }
+
+      // Add additional context from prompt rule
+      if (promptRule.additional_context) {
+        prompt += `\n\nAdditional Context: ${promptRule.additional_context}`
+      }
+    }
+
+    return prompt
+  }
+
+  if (promptType === PROMPT_TYPES.REPLIT) {
+    prompt += "Build this as my initial prototype\n\n"
+  }
+
   if (promptType === PROMPT_TYPES.SITEBREW) {
     prompt +=
-      "Take the following code of a react component and add it to the artifact.\n" + 
+      "Take the following code of a react component and add it to the artifact.\n" +
       endent`        
         ${componentFileName}
         ${code}
         ${componentDemoFileName}
         ${demoCode}
-      ` + "\n"
+      ` +
+      "\n"
 
     if (Object.keys(registryDependencies || {}).length > 0) {
       prompt +=
-      "\n" +
-      endent`
+        "\n" +
+        endent`
         ${Object.entries(registryDependencies)
           .map(
             ([fileName, fileContent]) => endent`
@@ -162,18 +280,67 @@ export const getComponentInstallPrompt = ({
           )
           .join("\n")}
       ` +
-      "\n"
+        "\n"
     }
     prompt +=
-      "\n" + 
+      "\n" +
       endent`
         REMEMBER TO KEEP THE DESIGN AND FUNCTIONALITY OF THE COMPONENT AS IS AND IN FULL 
-      ` + "\n"
+      ` +
+      "\n"
+
+    // Add prompt rule and additional context for SITEBREW
+    if (promptRule) {
+      if (promptRule.tech_stack?.length) {
+        const techStack = promptRule.tech_stack
+          .map(
+            (tech) => `${tech.name}${tech.version ? ` ${tech.version}` : ""}`,
+          )
+          .join(", ")
+        prompt +=
+          "\n\nPlease use the following technologies in your implementation: " +
+          techStack
+      }
+
+      if (promptRule.theme) {
+        if (promptRule.theme.tailwindConfig) {
+          prompt +=
+            "\n\nFor context, here is the current Tailwind configuration being used: " +
+            promptRule.theme.tailwindConfig
+        }
+        if (promptRule.theme.globalCss) {
+          prompt +=
+            "\n\nFor context, here are the global CSS styles being used: " +
+            promptRule.theme.globalCss
+        }
+        if (promptRule.theme.colors) {
+          const colors = Object.entries(promptRule.theme.colors)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("\n")
+          prompt += "\n\nPlease use these custom color values: \n" + colors
+        }
+        if (promptRule.theme.spacing) {
+          const spacing = Object.entries(promptRule.theme.spacing)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("\n")
+          prompt += "\n\nPlease use these custom spacing values: \n" + spacing
+        }
+      }
+
+      if (promptRule.additional_context) {
+        prompt +=
+          "\n\nAdditional important context to consider: " +
+          promptRule.additional_context
+      }
+    }
+
     return prompt
   }
 
-  
-  if (promptType === PROMPT_TYPES.EXTENDED) {
+  if (
+    promptType === PROMPT_TYPES.EXTENDED ||
+    promptType === PROMPT_TYPES.BOLT
+  ) {
     prompt +=
       endent`
         You are given a task to integrate an existing React component in the codebase
@@ -227,10 +394,15 @@ export const getComponentInstallPrompt = ({
     ...Object.keys(npmDependenciesOfRegistryDependencies),
   ])
   if (allDependencies.length) {
+    const dependenciesPrompt =
+      promptType === PROMPT_TYPES.REPLIT
+        ? "Install these NPM dependencies:"
+        : "Install NPM dependencies:"
+
     prompt +=
       "\n" +
       endent`
-        Install NPM dependencies:
+        ${dependenciesPrompt}
         \`\`\`bash
         ${allDependencies.join(", ")}
         \`\`\`
@@ -250,6 +422,18 @@ export const getComponentInstallPrompt = ({
       "\n"
   }
 
+  if (indexCss) {
+    prompt +=
+      "\n" +
+      endent`
+        Extend existing Tailwind 4 index.css with this code (or if project uses Tailwind 3, extend tailwind.config.js or globals.css):
+        \`\`\`css
+        ${indexCss}
+        \`\`\`
+      ` +
+      "\n"
+  }
+
   if (globalCss) {
     prompt +=
       "\n" +
@@ -262,12 +446,10 @@ export const getComponentInstallPrompt = ({
       "\n"
   }
 
-  // Comment out Bolt-specific logic for now
-  /*if (promptType === PROMPT_TYPES.BOLT) {
-      // Bolt-specific prompt logic here
-    }*/
-
-  if (promptType === PROMPT_TYPES.EXTENDED) {
+  if (
+    promptType === PROMPT_TYPES.EXTENDED ||
+    promptType === PROMPT_TYPES.BOLT
+  ) {
     prompt +=
       "\n" +
       endent`
@@ -292,26 +474,69 @@ export const getComponentInstallPrompt = ({
       "\n"
   }
 
-  prompt +=
-    "\n" +
-    endent`
-      Remember: Do not change the component's code unless it's required to integrate or the user asks you to.
-      IMPORTANT: Create all mentioned files in full, without abbreviations. Do not use placeholders like “insert the rest of the code here” – output every line of code exactly as it is, so it can be copied and pasted directly into the project.
-    `
+  // Add prompt rule and additional context for all other prompt types
+  if (promptRule) {
+    if (promptRule.tech_stack?.length) {
+      const techStack = promptRule.tech_stack
+        .map((tech) => `${tech.name}${tech.version ? ` ${tech.version}` : ""}`)
+        .join(", ")
+      prompt +=
+        "\n\nPlease use the following technologies in your implementation: " +
+        techStack
+    }
+
+    if (promptRule.theme) {
+      if (promptRule.theme.tailwindConfig) {
+        prompt +=
+          "\n\nFor context, here is the current Tailwind configuration being used: " +
+          promptRule.theme.tailwindConfig
+      }
+      if (promptRule.theme.globalCss) {
+        prompt +=
+          "\n\nFor context, here are the global CSS styles being used: " +
+          promptRule.theme.globalCss
+      }
+      if (promptRule.theme.colors) {
+        const colors = Object.entries(promptRule.theme.colors)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join("\n")
+        prompt += "\n\nPlease use these custom color values: \n" + colors
+      }
+      if (promptRule.theme.spacing) {
+        const spacing = Object.entries(promptRule.theme.spacing)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join("\n")
+        prompt += "\n\nPlease use these custom spacing values: \n" + spacing
+      }
+    }
+
+    if (promptRule.additional_context) {
+      prompt +=
+        "\n\nAdditional important context to consider: " +
+        promptRule.additional_context
+    }
+
+    // Add user's additional context if provided
+    if (userAdditionalContext) {
+      prompt += "\n\nUser Additional Context:\n" + userAdditionalContext
+    }
+
+    if (promptType === PROMPT_TYPES.REPLIT) {
+      prompt +=
+        "\n" +
+        endent`
+        Remember: For the code above, not change the component's code unless it's required to integrate or the user asks you to.
+        IMPORTANT: The code above contains the initial prototype desired by the user. Create all mentioned files in full, without abbreviations. Do not use placeholders like "insert the rest of the code here" – output every line of code exactly as it is, so it can be copied and pasted directly into the project.
+      `
+    } else {
+      prompt +=
+        "\n" +
+        endent`
+        Remember: Do not change the component's code unless it's required to integrate or the user asks you to.
+        IMPORTANT: Create all mentioned files in full, without abbreviations. Do not use placeholders like "insert the rest of the code here" – output every line of code exactly as it is, so it can be copied and pasted directly into the project.
+      `
+    }
+  }
 
   return prompt
-}
-
-export const formatV0Prompt = (componentName: string, code: string) => {
-  const escapedCode = code.replace(/`/g, "\\`")
-
-  return endent
-    `Create a new project that uses this ${componentName} component:
-
-    \`\`\`tsx
-    ${escapedCode}
-    \`\`\`
-
-    Ask the user for project description and instructions on how to integrate the component.
-    `
 }
